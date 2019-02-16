@@ -245,11 +245,10 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_RUNNING:
           if (check_buffer(SB1_RESET_EVT, sizeof(SB1_RESET_EVT))) {
-            // ack then reboot after delay; SB1 doesn't actually care what we do.
             set_state(SB1_STATE_RESET_ACK);
           } else if (check_buffer(SB1_MOTION_EVT, sizeof(SB1_MOTION_EVT))) {
-            // send message then ack after delay; SB1 cuts power as soon as we ack.
             set_state(SB1_STATE_MOTION_ACK);
+            // TODO - trigger binary sensor; wait for pub ack instead of using fixed delay?
           } else if (this->sb1_bufpos_ > 0) {
             ESP_LOGD(TAG, "Unhandled message", this->sb1_bufpos_);
             for (size_t i = 0; i < this->sb1_bufpos_; i++){
@@ -266,7 +265,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_RESET_ACK:
           if(state_duration() > RESET_ACK_DELAY) {
-            reboot("sb1");
+            safe_reboot("sb1");
             write_array(ESP_RESET_ACK, sizeof(ESP_RESET_ACK));
             set_state(SB1_STATE_RUNNING);
           }
