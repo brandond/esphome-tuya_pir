@@ -1,0 +1,52 @@
+esphome:
+  name: bench_esp8266
+  platform: ESP8266
+  board: esp01_1m
+  arduino_version: 2.4.2
+  esphome_core_version: dev
+  board_flash_mode: dout
+  build_path: .build
+  includes:
+    - sb1_uart.h
+
+substitutions: !include .substitutions.yaml
+
+wifi:
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
+
+mqtt:
+  broker: ${mqtt_broker}
+
+uart:
+  - tx_pin: 1
+    rx_pin: 3
+    baud_rate: 9600
+    id: uart0
+
+logger:
+  level: DEBUG
+  id: logger
+  hardware_uart: UART1
+
+ota:
+
+status_led:
+  id: led0
+  pin:
+    number: 4
+    inverted: True
+
+sensor:
+  - platform: wifi_signal
+    name: "Bench ESP8266 WiFi Signal"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 4
+
+custom_component:
+  - id: sb1_uart
+    lambda: |-
+      auto component = new SB1UARTComponent(id(uart0));
+      return {component};

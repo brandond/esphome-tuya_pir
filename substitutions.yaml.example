@@ -1,0 +1,4 @@
+# Rename this file to .substitutions
+wifi_ssid: YOUR_SSID
+wifi_password: YOUR_PASSWORD
+mqtt_broker: YOUR_BROKER
