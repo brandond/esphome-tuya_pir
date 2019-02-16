@@ -44,7 +44,8 @@ static const uint8_t SB1_MOTION_EVT[]    = {0x55, 0xAA, 0x00, 0x05, 0x00, 0x05, 
 static const uint8_t ESP_MOTION_ACK[]    = {0x55, 0xAA, 0x00, 0x05, 0x00, 0x01, 0x00, 0x05};
 #define              SB1_MESSAGE_MAX       64
 #define              SB1_HEADER_LEN        2
-#define              LOOP_DIVISOR          10
+#define              MOTION_ACK_DELAY      3000
+#define              RESET_ACK_DELAY       500
 
 
 class SB1UARTComponent : public Component, public UARTDevice {
@@ -53,8 +54,11 @@ class SB1UARTComponent : public Component, public UARTDevice {
     uint8_t sb1_in_[SB1_MESSAGE_MAX]{};
     uint8_t sb1_bufpos_{0};
     uint32_t state_start_{0};
-    uint8_t loop_counter_{0};
 
+    /*
+     * Read available data into the buffer, and see if it matches the message
+     * we're looking for. If so, the message is removed from the buffer.
+     */
     bool check_buffer(const uint8_t *message, size_t len) {
       fill_buffer();
       if (memcmp(this->sb1_in_, message, len) == 0) {
@@ -65,7 +69,14 @@ class SB1UARTComponent : public Component, public UARTDevice {
       }
     }
 
+    /*
+     * Read bytes from the system serial buffer into our message buffer, if
+     * there's room. Unless trimming is disabled, remove any invalid data
+     * from the buffer until it is either empty, or starts with a valid 
+     * message header.
+     */
     void fill_buffer(bool trim = true){
+      // readinto would be nice
       while (this->sb1_bufpos_ < SB1_MESSAGE_MAX &&
              available()){
         read_byte(this->sb1_in_ + this->sb1_bufpos_++);
@@ -78,60 +89,84 @@ class SB1UARTComponent : public Component, public UARTDevice {
       }
     }
 
+    /* 
+     * Wipe the buffer contents
+     */
+    void reset_buffer(){
+      if (this->sb1_bufpos_ == 0){
+        return;
+      } else {
+        ESP_LOGV(TAG, "Clearing %d bytes", this->sb1_bufpos_);
+        this->sb1_bufpos_ = 0;
+        memset(this->sb1_in_, 0x00, SB1_MESSAGE_MAX);
+      }
+    }
+
+    /*
+     * Remove bytes from the beginning of the buffer, and move the remaining
+     * bytes up to the front.
+     */
     void trim_buffer(size_t len) {
       if (len > this->sb1_bufpos_) {
         len = this->sb1_bufpos_;
+      } else if (len == 0){
+        return;
       }
+      // I think the math here is all right but I'm terrible at pointer arithmetic
+      // Anyway, it seems to work.
       size_t remainder = this->sb1_bufpos_ - len;
-      ESP_LOGD(TAG, "Trimming %d of %d bytes", len, this->sb1_bufpos_);
+      ESP_LOGV(TAG, "Trimming %d of %d bytes", len, this->sb1_bufpos_);
       memmove(this->sb1_in_, this->sb1_in_ + len, remainder);
       memset(this->sb1_in_ + remainder, 0x00, SB1_MESSAGE_MAX - remainder);
       this->sb1_bufpos_ = remainder;
-      ESP_LOGD(TAG, "%d bytes left", this->sb1_bufpos_);
+      ESP_LOGV(TAG, "%d bytes left", this->sb1_bufpos_);
     }
 
+    /*
+     * Discard bytes from the buffer until the end character is found,
+     * or for 100ms, whichever comes first
+     */
     void trim_until(const uint8_t end) {
       uint32_t start_time = millis();
       uint8_t *pchr;
-      ESP_LOGD(TAG, "Trim until %#x", end);
+      ESP_LOGV(TAG, "Trimming until 0x%02X", end);
       while (true){
         pchr = (uint8_t*) memchr(this->sb1_in_, end, this->sb1_bufpos_);
         if (pchr == nullptr) {
-          ESP_LOGD(TAG, "Clearing %d bytes", this->sb1_bufpos_);
-          if (millis() - start_time > 100) {
-            break;
-          } else {
+          // Keep reading and discarding after 100 ms if we don't find the end marker
+          ESP_LOGV(TAG, "End marker not found");
+          if (millis() - start_time < 100) {
             yield();
-            this->sb1_bufpos_ = 0;
-            memset(this->sb1_in_, 0x00, SB1_MESSAGE_MAX);
+            reset_buffer();
             fill_buffer(false);
+          } else {
+            break;
           }
         } else {
-          ESP_LOGD(TAG, "End marker found");
+          // Found the end marker; delete everything up to and including it
+          ESP_LOGV(TAG, "End marker found");
           trim_buffer(pchr - this->sb1_in_ + 1);
           break;
         }
       }
     }
 
+    /* 
+     * Update state machine
+     */
     void set_state(SB1State state) {
       ESP_LOGD(TAG, "state: %d -> %d after %d ms", this->state_, state, state_duration());
       this->state_ = state;
       this->state_start_ = millis();
     }
 
+    /*
+     * Get time since the last state change
+     */
     uint32_t state_duration() {
       return (millis() - this->state_start_);
     }
 
-    bool loop_divisor() {
-      if (this->loop_counter_++ == LOOP_DIVISOR) {
-        this->loop_counter_ = 0;
-        return true;
-      } else {
-        return false;
-      }
-    }
 
   public:
     SB1UARTComponent(UARTComponent *parent) : UARTDevice(parent) {}
@@ -140,11 +175,10 @@ class SB1UARTComponent : public Component, public UARTDevice {
       return setup_priority::HARDWARE_LATE;
     }
 
+    /* 
+     * Giant ugly state machine for writing, reading, and responding to messages
+     */
     void loop() override {
-      if (! loop_divisor()){
-        return;
-      }
-
       switch (this->state_) {
         case SB1_STATE_HANDSHAKE:
           write_array(ESP_HANDSHAKE_REQ, sizeof(ESP_HANDSHAKE_REQ));
@@ -211,31 +245,32 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_RUNNING:
           if (check_buffer(SB1_RESET_EVT, sizeof(SB1_RESET_EVT))) {
-            // ack then reboot after delay; SB1 doesn't actually care if we reset or not.
-            write_array(ESP_RESET_ACK, sizeof(ESP_RESET_ACK));
+            // ack then reboot after delay; SB1 doesn't actually care what we do.
             set_state(SB1_STATE_RESET_ACK);
           } else if (check_buffer(SB1_MOTION_EVT, sizeof(SB1_MOTION_EVT))) {
             // send message then ack after delay; SB1 cuts power as soon as we ack.
             set_state(SB1_STATE_MOTION_ACK);
           } else if (this->sb1_bufpos_ > 0) {
-            ESP_LOGD(TAG, "Unhandled event with %d bytes", this->sb1_bufpos_);
+            ESP_LOGD(TAG, "Unhandled message", this->sb1_bufpos_);
             for (size_t i = 0; i < this->sb1_bufpos_; i++){
-              ESP_LOGD(TAG, "Byte %d: %#x", i, sb1_in_[i]);
+              ESP_LOGD(TAG, "Byte %d: 0x%02X", i, sb1_in_[i]);
             }
+            reset_buffer();
           }
           break;
         case SB1_STATE_MOTION_ACK:
-          if (state_duration() > 3000) {
+          if (state_duration() > MOTION_ACK_DELAY) {
             write_array(ESP_MOTION_ACK, sizeof(ESP_MOTION_ACK));
             set_state(SB1_STATE_RUNNING);
           }
           break;
         case SB1_STATE_RESET_ACK:
-          if(state_duration() > 500) {
+          if(state_duration() > RESET_ACK_DELAY) {
             reboot("sb1");
+            write_array(ESP_RESET_ACK, sizeof(ESP_RESET_ACK));
             set_state(SB1_STATE_RUNNING);
-            break;
           }
+          break;
       }
     }
 
