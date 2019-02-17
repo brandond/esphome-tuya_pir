@@ -7,16 +7,16 @@ using namespace esphome;
 enum SB1State {
   SB1_STATE_HANDSHAKE = 0,
   SB1_STATE_HANDSHAKE_ACK,
-  SB1_STATE_AP,
-  SB1_STATE_AP_ACK,
-  SB1_STATE_STA,
-  SB1_STATE_STA_ACK,
-  SB1_STATE_WIFI,
-  SB1_STATE_WIFI_ACK,
-  SB1_STATE_IP,
-  SB1_STATE_IP_ACK,
-  SB1_STATE_MQTT,
-  SB1_STATE_MQTT_ACK,
+  SB1_STATE_CONF_AP,
+  SB1_STATE_CONF_AP_ACK,
+  SB1_STATE_CONF_STA,
+  SB1_STATE_CONF_STA_ACK,
+  SB1_STATE_BOOT_WIFI,
+  SB1_STATE_BOOT_WIFI_ACK,
+  SB1_STATE_BOOT_IP,
+  SB1_STATE_BOOT_IP_ACK,
+  SB1_STATE_BOOT_MQTT,
+  SB1_STATE_BOOT_MQTT_ACK,
   SB1_STATE_RUNNING,
   SB1_STATE_MOTION_ACK,
   SB1_STATE_RESET_ACK
@@ -24,28 +24,28 @@ enum SB1State {
 
 static const char *TAG = "sb1";
 
-static const uint8_t SB1_HEADER[]        = {0x55, 0xAA};
+static const uint8_t SB1_HEADER[]           = {0x55, 0xAA};
 
-static const uint8_t ESP_HANDSHAKE_REQ[] = {0x55, 0xAA, 0x00, 0x01, 0x00, 0x00, 0x00};
-static const uint8_t SB1_HANDSHAKE_ACK[] = {0x55, 0xAA, 0x00, 0x01, 0x00};
-static const uint8_t SB1_HANDSHAKE_END[] = {0x19};
+static const uint8_t ESP_HANDSHAKE_REQ[]    = {0x55, 0xAA, 0x00, 0x01, 0x00, 0x00, 0x00};
+static const uint8_t SB1_HANDSHAKE_ACK[]    = {0x55, 0xAA, 0x00, 0x01, 0x00};
+static const uint8_t SB1_HANDSHAKE_END[]    = {0x19};
 
-static const uint8_t ESP_STATUS_STA[]    = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x00, 0x02};
-static const uint8_t ESP_STATUS_AP[]     = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x01, 0x03};
-static const uint8_t ESP_STATUS_WIFI[]   = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x02, 0x04};
-static const uint8_t ESP_STATUS_IP[]     = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x03, 0x05};
-static const uint8_t ESP_STATUS_MQTT[]   = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x04, 0x06};
-static const uint8_t SB1_STATUS_ACK[]    = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x00, 0x01};
+static const uint8_t ESP_STATUS_CONF_STA[]  = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x00, 0x02};
+static const uint8_t ESP_STATUS_CONF_AP[]   = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x01, 0x03};
+static const uint8_t ESP_STATUS_BOOT_WIFI[] = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x02, 0x04};
+static const uint8_t ESP_STATUS_BOOT_IP[]   = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x03, 0x05};
+static const uint8_t ESP_STATUS_BOOT_MQTT[] = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x01, 0x04, 0x06};
+static const uint8_t SB1_STATUS_ACK[]       = {0x55, 0xAA, 0x00, 0x02, 0x00, 0x00, 0x01};
 
-static const uint8_t SB1_RESET_EVT[]     = {0x55, 0xAA, 0x00, 0x03, 0x00, 0x00, 0x02};
-#define              ESP_RESET_ACK         SB1_RESET_EVT
+static const uint8_t SB1_RESET_EVT[]        = {0x55, 0xAA, 0x00, 0x03, 0x00, 0x00, 0x02};
+#define              ESP_RESET_ACK            SB1_RESET_EVT
 
-static const uint8_t SB1_MOTION_EVT[]    = {0x55, 0xAA, 0x00, 0x05, 0x00, 0x05, 0x65, 0x01, 0x00, 0x01, 0x00, 0x70};
-static const uint8_t ESP_MOTION_ACK[]    = {0x55, 0xAA, 0x00, 0x05, 0x00, 0x01, 0x00, 0x05};
-#define              SB1_MESSAGE_MAX       64
-#define              SB1_HEADER_LEN        2
-#define              MOTION_ACK_DELAY      3000
-#define              RESET_ACK_DELAY       500
+static const uint8_t SB1_MOTION_EVT[]       = {0x55, 0xAA, 0x00, 0x05, 0x00, 0x05, 0x65, 0x01, 0x00, 0x01, 0x00, 0x70};
+static const uint8_t ESP_MOTION_ACK[]       = {0x55, 0xAA, 0x00, 0x05, 0x00, 0x01, 0x00, 0x05};
+#define              SB1_MESSAGE_MAX          64
+#define              SB1_HEADER_LEN           2
+#define              MOTION_ACK_DELAY         3000
+#define              RESET_ACK_DELAY          500
 
 
 class SB1UARTComponent : public Component, public UARTDevice {
@@ -76,7 +76,9 @@ class SB1UARTComponent : public Component, public UARTDevice {
      * message header.
      */
     void fill_buffer(bool trim = true){
-      // readinto would be nice
+      // TODO: Add stall counter that triggers reboot if the buffer
+      // starts with a valid header but isn't grown or trimmed for
+      // while.
       while (this->sb1_bufpos_ < SB1_MESSAGE_MAX &&
              available()){
         read_byte(this->sb1_in_ + this->sb1_bufpos_++);
@@ -167,6 +169,19 @@ class SB1UARTComponent : public Component, public UARTDevice {
       return (millis() - this->state_start_);
     }
 
+    /*
+     * Check to see if client connection is up - either
+     * ESP as MQTT client to HA, or HA as API client to ESP.
+     */
+    bool client_is_connected() {
+      // TODO: extend -core support to expose connected API client count
+      if (mqtt::global_mqtt_client != nullptr && mqtt::global_mqtt_client->is_connected()){
+        return true;
+      } else {
+        return false;
+      }
+    }
+
 
   public:
     SB1UARTComponent(UARTComponent *parent) : UARTDevice(parent) {}
@@ -179,6 +194,19 @@ class SB1UARTComponent : public Component, public UARTDevice {
      * Giant ugly state machine for writing, reading, and responding to messages
      */
     void loop() override {
+      // Reboot events are user-initiated and can occur regardless of state
+      if (check_buffer(SB1_RESET_EVT, sizeof(SB1_RESET_EVT))) {
+          write_array(ESP_RESET_ACK, sizeof(ESP_RESET_ACK));
+          set_state(SB1_STATE_RESET_ACK);
+          return;
+      }
+
+      // TODO - right now we can get stuck if a message comes in that has
+      // a valid header but doesn't match a message the current state
+      // is expecting. While it might make sense to 'read through'
+      // the buffer to the next message chunk if we have a valid header
+      // that hasn't been trimmed for a few cycles, a better way to handle
+      // this might be to simply reboot. Need to see how the SB1 handles this.
       switch (this->state_) {
         case SB1_STATE_HANDSHAKE:
           write_array(ESP_HANDSHAKE_REQ, sizeof(ESP_HANDSHAKE_REQ));
@@ -188,11 +216,11 @@ class SB1UARTComponent : public Component, public UARTDevice {
           if (check_buffer(SB1_HANDSHAKE_ACK, sizeof(SB1_HANDSHAKE_ACK))) {
             trim_until(SB1_HANDSHAKE_END[0]);
             if (global_wifi_component->has_ap()) {
-              set_state(SB1_STATE_AP);
+              set_state(SB1_STATE_CONF_AP);
             } else if (global_wifi_component->has_sta()) {
-              set_state(SB1_STATE_WIFI);
+              set_state(SB1_STATE_BOOT_WIFI);
             } else {
-              set_state(SB1_STATE_STA);
+              set_state(SB1_STATE_CONF_STA);
             }
           } else {
             if (state_duration() > 1000) {
@@ -200,61 +228,53 @@ class SB1UARTComponent : public Component, public UARTDevice {
             }
           }
           break;
-        case SB1_STATE_AP:
-          write_array(ESP_STATUS_AP, sizeof(ESP_STATUS_AP));
-          set_state(SB1_STATE_AP_ACK);
+        case SB1_STATE_CONF_AP:
+          write_array(ESP_STATUS_CONF_AP, sizeof(ESP_STATUS_CONF_AP));
+          set_state(SB1_STATE_CONF_AP_ACK);
           break;
-        case SB1_STATE_STA:
-          write_array(ESP_STATUS_STA, sizeof(ESP_STATUS_STA));
-          set_state(SB1_STATE_STA_ACK);
+        case SB1_STATE_CONF_STA:
+          write_array(ESP_STATUS_CONF_STA, sizeof(ESP_STATUS_CONF_STA));
+          set_state(SB1_STATE_CONF_STA_ACK);
           break;
-        case SB1_STATE_WIFI:
+        case SB1_STATE_BOOT_WIFI:
           if (global_wifi_component->is_connected()) {
-            write_array(ESP_STATUS_WIFI, sizeof(ESP_STATUS_WIFI));
-            set_state(SB1_STATE_WIFI_ACK);
+            write_array(ESP_STATUS_BOOT_WIFI, sizeof(ESP_STATUS_BOOT_WIFI));
+            set_state(SB1_STATE_BOOT_WIFI_ACK);
           }
           break;
-        case SB1_STATE_WIFI_ACK:
+        case SB1_STATE_BOOT_WIFI_ACK:
           if (check_buffer(SB1_STATUS_ACK, sizeof(SB1_STATUS_ACK))) {
-            set_state(SB1_STATE_IP);
+            set_state(SB1_STATE_BOOT_IP);
           }
           break;
-        case SB1_STATE_IP:
+        case SB1_STATE_BOOT_IP:
           if (global_wifi_component->get_ip_address() != (uint32_t)0 ) {
-            write_array(ESP_STATUS_IP, sizeof(ESP_STATUS_IP));
-            set_state(SB1_STATE_IP_ACK);
+            write_array(ESP_STATUS_BOOT_IP, sizeof(ESP_STATUS_BOOT_IP));
+            set_state(SB1_STATE_BOOT_IP_ACK);
           }
           break;
-        case SB1_STATE_IP_ACK:
+        case SB1_STATE_BOOT_IP_ACK:
           if (check_buffer(SB1_STATUS_ACK, sizeof(SB1_STATUS_ACK))) {
-            set_state(SB1_STATE_MQTT);
+            set_state(SB1_STATE_BOOT_MQTT);
           }
           break;
-        case SB1_STATE_MQTT:
-          if (mqtt::global_mqtt_client->is_connected()) {
-            write_array(ESP_STATUS_MQTT, sizeof(ESP_STATUS_MQTT));
-            set_state(SB1_STATE_MQTT_ACK);
+        case SB1_STATE_BOOT_MQTT:
+          if (client_is_connected()) {
+            write_array(ESP_STATUS_BOOT_MQTT, sizeof(ESP_STATUS_BOOT_MQTT));
+            set_state(SB1_STATE_BOOT_MQTT_ACK);
           }
           break;
-        case SB1_STATE_MQTT_ACK:
-        case SB1_STATE_AP_ACK:
-        case SB1_STATE_STA_ACK:
+        case SB1_STATE_BOOT_MQTT_ACK:
+        case SB1_STATE_CONF_AP_ACK:
+        case SB1_STATE_CONF_STA_ACK:
           if (check_buffer(SB1_STATUS_ACK, sizeof(SB1_STATUS_ACK))) {
             set_state(SB1_STATE_RUNNING);
           }
           break;
         case SB1_STATE_RUNNING:
-          if (check_buffer(SB1_RESET_EVT, sizeof(SB1_RESET_EVT))) {
-            set_state(SB1_STATE_RESET_ACK);
-          } else if (check_buffer(SB1_MOTION_EVT, sizeof(SB1_MOTION_EVT))) {
+          if (check_buffer(SB1_MOTION_EVT, sizeof(SB1_MOTION_EVT))) {
             set_state(SB1_STATE_MOTION_ACK);
             // TODO - trigger binary sensor; wait for pub ack instead of using fixed delay?
-          } else if (this->sb1_bufpos_ > 0) {
-            ESP_LOGD(TAG, "Unhandled message", this->sb1_bufpos_);
-            for (size_t i = 0; i < this->sb1_bufpos_; i++){
-              ESP_LOGD(TAG, "Byte %d: 0x%02X", i, sb1_in_[i]);
-            }
-            reset_buffer();
           }
           break;
         case SB1_STATE_MOTION_ACK:
@@ -264,11 +284,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
           }
           break;
         case SB1_STATE_RESET_ACK:
-          if(state_duration() > RESET_ACK_DELAY) {
-            safe_reboot("sb1");
-            write_array(ESP_RESET_ACK, sizeof(ESP_RESET_ACK));
-            set_state(SB1_STATE_RUNNING);
-          }
+          safe_reboot("sb1");
           break;
       }
     }
