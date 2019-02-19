@@ -9,6 +9,7 @@ using namespace esphome;
 #define SB1_HEADER_LEN   2
 #define RESET_ACK_DELAY  250
 #define MOTION_ACK_DELAY 500
+#define ACK_WAIT_TIMEOUT 1000
 
 static const char *TAG = "sb1";
 static const uint16_t SB1_HEADER = 0x55AA;
@@ -65,6 +66,13 @@ class SB1UARTComponent : public Component, public UARTDevice {
     uint32_t state_start_{0};
     uint8_t uart_buffer_[SB1_BUFFER_LEN]{0};
 
+    /*
+     * Attempt to read an entire message from the serial UART into the message struct.
+     * Will fail early if unable to find the two-byte header in the current
+     * data stream. If the header is found, it will contine to read the complete
+     * TLV+checksum sequence off the port. If the entire sequence can be read
+     * and the checksum is valid, it will return true.
+     */
     bool read_message() {
       // Shift bytes through until we find a valid header
       bool valid_header = false;
@@ -102,6 +110,10 @@ class SB1UARTComponent : public Component, public UARTDevice {
       return false;
     }
 
+    /*
+     * Store the given type, value, and length into the message struct and send
+     * it out the serial port. Automatically calculates the checksum as well.
+     */
     void write_message(SB1MessageType type, const uint8_t *value, uint16_t length) {
       // Copy params into message struct
       this->message_.header = SB1_HEADER;
@@ -127,7 +139,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
     }
 
     /*
-     * Calculate checksum from current UART buffer (header+type+length) plus message value
+     * Calculate checksum from current UART buffer (header+type+length) plus message value.
      */
     uint8_t checksum() {
       uint8_t checksum = 0;
@@ -177,6 +189,33 @@ class SB1UARTComponent : public Component, public UARTDevice {
       }
     }
 
+    /*
+     * Add safe shutdown hooks after the main loop has started.
+     *
+     * Don't do this in setup, otherwise we get called before the OTA component gets a chance
+     * to clear the boot loop counter, due to our setup registering the hook first.
+     * Hooks should probably be called in reverse order of registration.
+     */
+    void add_late_hooks() {
+      add_safe_shutdown_hook([this](const char *cause) {
+        this->rtc_.save(&this->safe_mode_);
+        ESP_LOGD(TAG, "SB1 UART shutting down; safe_mode = %d", this->safe_mode_);
+        flush();
+
+        switch (this->state_) {
+          case SB1_STATE_MOTION_ACK:
+            write_message(SB1_MESSAGE_TYPE_MOTION, SB1_MOTION_ACK, 1);
+            break;
+          case SB1_STATE_RESET_ACK:
+          case SB1_STATE_RUNNING:
+            write_message(SB1_MESSAGE_TYPE_RESET, nullptr, 0);
+            break;
+          default:
+            break;
+        }
+      });
+    }
+
   public:
     SB1UARTComponent(UARTComponent *parent, binary_sensor::BinarySensor *sensor)
         : UARTDevice(parent)
@@ -187,30 +226,20 @@ class SB1UARTComponent : public Component, public UARTDevice {
     }
 
     void setup() override {
+      ESP_LOGCONFIG(TAG, "Setting up SB1 UART...");
       this->rtc_ = global_preferences.make_preference<bool>(this->sensor_->get_object_id_hash());
       this->rtc_.load(&this->safe_mode_);
-      ESP_LOGD(TAG, "Setting up SB1 UART; safe_mode = %d", this->safe_mode_);
     }
 
-    // Don't do this in setup, otherwise we get called before the OTA component gets a chance
-    // to clear the boot loop counter, due to our setup registering the hook first.
-    // Hooks should probably be called in reverse order of registration.
-    void add_late_hooks() {
-      add_safe_shutdown_hook([this](const char *cause) {
-        this->rtc_.save(&this->safe_mode_);
-        ESP_LOGD(TAG, "SB1 UART shutting down; safe_mode = %d", this->safe_mode_);
-        flush();
-
-        if (this->state_ == SB1_STATE_MOTION_ACK) {
-          write_message(SB1_MESSAGE_TYPE_MOTION, SB1_MOTION_ACK, 1);
-        } else if (this->state_ == SB1_STATE_RESET_ACK) {
-          write_message(SB1_MESSAGE_TYPE_RESET, nullptr, 0);
-        }
-      });
+    void dump_config() override {
+      ESP_LOGCONFIG(TAG, "SB1 UART:");
+      ESP_LOGCONFIG(TAG, "  Safe Mode: %d", this->safe_mode_);
     }
 
     /* 
-     * Giant ugly state machine
+     * State machine; generally follows the same message sequence as
+     * has been observed to flow between the stock Tuya firmware and
+     * the SB1 chip via the UART bus.
      */
     void loop() override {
       bool have_message = read_message();
@@ -235,7 +264,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
             } else { 
               set_state(SB1_STATE_BOOT_WIFI);
             }
-          } else if (state_duration() > 1000) {
+          } else if (state_duration() > ACK_WAIT_TIMEOUT) {
             set_state(SB1_STATE_HANDSHAKE);
           }
           break;

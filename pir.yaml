@@ -26,26 +26,23 @@ uart:
     id: uart0
 
 logger:
-  level: VERBOSE
+  level: DEBUG
   id: logger
   hardware_uart: UART1
 
 ota:
   id: ota
 
-status_led:
-  id: led0
-  pin:
-    number: 4
-    inverted: True
-
 sensor:
   - platform: wifi_signal
+    id: wifi_signal
     name: "PIR00 WiFi Signal"
-    filters:
-      - sliding_window_moving_average:
-          window_size: 4
-          send_every: 4
+    filters: []
+  - platform: adc
+    id: voltage
+    name: "PIR00 Voltage Sensor"
+    pin: VCC
+    filters: []
 
 binary_sensor:
   - platform: template

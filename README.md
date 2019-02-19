@@ -20,14 +20,27 @@ I am a terrible C/C++ coder. I usually stick to Python, Perl, C#, Java, etc. I a
 Serial Protocol Overview
 ------------------------
 
-These are the message I have seen the two processors exchange during limited bench testing. There may be more. Other than the `0x55 0xAA` header (which are both inverted alternating 0/1 patterns on the wire to assist with baud detection), I have not been able to reverse engineer any particular encoding.
+These are the message I have seen the two processors exchange during limited bench testing. There may be more.
+
+The protocol is a simple type-length-value sequence, with a fixed header and trailing 1-byte modulo-265 sum of the previous bytes, including the header. It looks something like this:
+
+```C
+// longs are sent in network byte order
+struct SB1Message {
+  uint16_t header;  // Fixed: 0x55AA
+  uint16_t type;
+  uint16_t length;
+  uint8_t value[SB1_MAX_LEN];
+  uint8_t checksum;
+};
+``` 
 
 Handshake
 ---------
 
 The first message is always a product ID request from the ESP to the SB1.
 
-The `0x00 0x01` prefix is used by both the request and response.
+The `0x00 0x01` type code is used by both the request and response.
 
 **Product ID Handshake:**
 ```
@@ -40,7 +53,7 @@ Configuration Status
 
 After handshaking, the sequence may go to one of three different paths as the ESP8266 is configured by the smartphone app and connnects to the cloud service.
 
-The `0x00 0x02` prefix is used by all status messages and responses.
+The `0x00 0x02` type code is used by all status messages and responses.
 
 **WiFi SmartConfig AP (Fast Blink) Mode:**
 ```
@@ -73,30 +86,36 @@ In Configured mode, if no motion event has been detected, the ESP8266 will be po
 
 Motion events will only be fired if the device has gone to sleep after being successfully configured. If the SB1 does not see a successful configuration sequence, the ESP8266 will stay asleep until the reset button is held to re-initiate autoconfiguration. I'm not sure what happens if WiFI or internet access is unavailable following successful configuration; this has yet to be tested.
 
-Motion Event
------------
-
-If the ESP8266 was powered up due to a motion event, the ack to the 'Connected to MQTT' message will be immediately followed by a motion detection message. The payload may vary; I haven't traced this extensively. There may be battery level information in here, or maybe the ESP reads it from the analog input. I'm not sure.
-
-The ESP8266 will be powered down immediately after acking the motion detection message. The message should NOT be ackd until whatever notification you're going to send has been successfully transmitted. 
-
-Motion detection has a 60 second cooldown after firing.
-
-The `0x00 0x05` prefix is used by all status messages and responses.
-
-```
-SB1 -> ESP8266: 55 AA 00 05 00 05 65 01 00 01 00 70
-ESP8266 -> SB1: 55 AA 00 05 00 01 00 05
-```
-
 Configuration Reset
------
+-------------------
 
 The SB1 may send a reset command to the ESP8266 at any time. This is triggered by holding down the button inside the device as described in the user manual. The Tuya firmware responds by removing all WiFi and Tuya configuration, and rebooting into SmartConfig mode. Repeated messages are used to toggle the device between STA and AP mode for SmartConfig. The SB1 does not seem to care if you ack this or not; it expects the ESP8266 to reboot anyway.
 
-The `0x00 0x03` prefix is used by all status messages and responses.
+The `0x00 0x03` type code is used by all status messages and responses.
 
 ```
 SB1 -> ESP8266: 55 AA 00 03 00 00 02
 ESP8266 -> SB1: 55 AA 00 03 00 00 02
+```
+
+Unknown Event
+-------------
+
+I would expect there to be a message with type code `0x00 0x04`, but I have not yet seen it.
+
+Motion Event
+------------
+
+If the ESP8266 was powered up due to a motion event, the ack to the 'Connected to MQTT' message will be immediately followed by a motion detection message. The ESP8266 will be powered down immediately after acking the motion detection message. The message should NOT be ackd until whatever notification you're going to send has been successfully transmitted. 
+
+Motion detection will not fire more than once per boot of the ESP. The payload varies, I have seen:
+* `65 01 00 01 00`  - either this one
+* `65 01 00 01 01`  - or this one
+* `64 01 00 01 00`  - following one of the `65` sequences, on the first motion event following a reset.
+
+The `0x00 0x05` type code is used by all motion messages and responses.
+
+```
+SB1 -> ESP8266: 55 AA 00 05 00 05 65 01 00 01 00 70
+ESP8266 -> SB1: 55 AA 00 05 00 01 00 05
 ```
