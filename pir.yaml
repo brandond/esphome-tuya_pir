@@ -1,5 +1,5 @@
 esphome:
-  name: bench_esp8266
+  name: pir00
   platform: ESP8266
   board: esp01_1m
   arduino_version: 2.4.2
@@ -14,6 +14,7 @@ substitutions: !include .substitutions.yaml
 wifi:
   ssid: ${wifi_ssid}
   password: ${wifi_password}
+  fast_connect: true
 
 mqtt:
   broker: ${mqtt_broker}
@@ -25,11 +26,12 @@ uart:
     id: uart0
 
 logger:
-  level: DEBUG
+  level: VERBOSE
   id: logger
   hardware_uart: UART1
 
 ota:
+  id: ota
 
 status_led:
   id: led0
@@ -39,14 +41,22 @@ status_led:
 
 sensor:
   - platform: wifi_signal
-    name: "Bench ESP8266 WiFi Signal"
+    name: "PIR00 WiFi Signal"
     filters:
       - sliding_window_moving_average:
           window_size: 4
           send_every: 4
 
+binary_sensor:
+  - platform: template
+    id: motion
+    name: "PIR00 Motion Sensor"
+    device_class: motion
+    lambda: "return {};"
+    filters: []
+
 custom_component:
   - id: sb1_uart
     lambda: |-
-      auto component = new SB1UARTComponent(id(uart0));
+      auto component = new SB1UARTComponent(id(uart0), id(motion));
       return {component};
