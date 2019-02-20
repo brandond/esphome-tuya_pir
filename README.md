@@ -11,7 +11,7 @@ These devices embed an ESP8266 wifi processor paired with a Silicon Labs [EMF8 '
 These devices have been documented a few places; this is the first attempt that I am aware of to document the protocol and provide alternate firmware.
 * https://github.com/esphome/esphome/issues/306
 * https://community.home-assistant.io/t/coolcam-wifi-motion-sensor-pir/54783
-
+* https://www.aliexpress.com/wholesale?SearchText=coolcam+white+wifi+pir
 
 Initial Flashing
 ----------------
