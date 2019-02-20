@@ -4,12 +4,18 @@
 #include "esphome.h"
 using namespace esphome;
 
-#define SB1_MAX_LEN      256
-#define SB1_BUFFER_LEN   6
-#define SB1_HEADER_LEN   2
-#define RESET_ACK_DELAY  250
-#define MOTION_ACK_DELAY 500
-#define ACK_WAIT_TIMEOUT 1000
+#define SB1_MAX_LEN      256   // Max length of message value
+#define SB1_BUFFER_LEN   6     // Length of serial buffer for header + type + length
+#define SB1_HEADER_LEN   2     // Length of fixed header
+#define RESET_ACK_DELAY  250   // Time to wait before rebooting due to reset
+#define MOTION_ACK_DELAY 500   // Time to wait before acking motion event and getting put to sleep
+#define ACK_WAIT_TIMEOUT 1000  // Time to wait for handshake response before re-sending request
+#define OTA_REBOOT_DELAY 30000 // Time to stay in 'running' state waiting for OTA before rebooting
+                               // This is a safety measure; although the SB1 will let us stay up for about 120
+                               // seconds, starting an OTA too late will likely result in the ESP getting put
+                               // to sleep before eboot can finish copying the new image. Since eboot clears
+                               // the copy command BEFORE copying the OTA image over the permanent image,
+                               // this can leave the device in an unbootable state.
 
 static const char *TAG = "sb1";
 static const uint16_t SB1_HEADER = 0x55AA;
@@ -63,8 +69,10 @@ class SB1UARTComponent : public Component, public UARTDevice {
     SB1Message message_{SB1_HEADER, SB1_MESSAGE_TYPE_INVALID, 0, {}, 0};
     ESPPreferenceObject rtc_;
     bool safe_mode_{false};
+    bool hooks_added_{false};
     uint32_t state_start_{0};
     uint8_t uart_buffer_[SB1_BUFFER_LEN]{0};
+    uint8_t product_info_[SB1_MAX_LEN]{0};
 
     /*
      * Attempt to read an entire message from the serial UART into the message struct.
@@ -93,7 +101,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
         this->message_.length = (this->uart_buffer_[4] << 8) + this->uart_buffer_[5];
         ESP_LOGV(TAG, "Got message type=0x%04X length=0x%04X", this->message_.type, this->message_.length);
 
-        if (this->message_.length <= SB1_MAX_LEN){
+        if (this->message_.length < SB1_MAX_LEN){
           read_array(this->message_.value, this->message_.length);
           read_byte(&this->message_.checksum);
           if (checksum() == this->message_.checksum) {
@@ -102,7 +110,8 @@ class SB1UARTComponent : public Component, public UARTDevice {
             return true;
           }
         } else {
-          ESP_LOGE(TAG, "Message value too long: %d", this->message_.length);
+          memset(this->uart_buffer_, 0, SB1_BUFFER_LEN);
+          ESP_LOGE(TAG, "Message length exceeds limit: %d >= %d", this->message_.length, SB1_MAX_LEN);
         }
       }
 
@@ -197,6 +206,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
      * Hooks should probably be called in reverse order of registration.
      */
     void add_late_hooks() {
+      ESP_LOGV(TAG, "Adding safe shutdown hooks...");
       add_safe_shutdown_hook([this](const char *cause) {
         this->rtc_.save(&this->safe_mode_);
         ESP_LOGD(TAG, "SB1 UART shutting down; safe_mode = %d", this->safe_mode_);
@@ -221,8 +231,16 @@ class SB1UARTComponent : public Component, public UARTDevice {
         : UARTDevice(parent)
         , sensor_(sensor) {}
 
+    // Run after hardware (UART), but before WiFi and MQTT so that we can
+    // send status messages to the SB1 as these components come up.
     float get_setup_priority() const override {
       return setup_priority::HARDWARE_LATE;
+    }
+
+    // Run very late in the loop, so that other components can process
+    // before we check on their state and send status to the SB1.
+    float get_loop_priority() const override {
+      return -10.0f;
     }
 
     void setup() override {
@@ -234,6 +252,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
     void dump_config() override {
       ESP_LOGCONFIG(TAG, "SB1 UART:");
       ESP_LOGCONFIG(TAG, "  Safe Mode: %d", this->safe_mode_);
+      ESP_LOGCONFIG(TAG, "  Product Info: %s", this->product_info_);
     }
 
     /* 
@@ -242,10 +261,18 @@ class SB1UARTComponent : public Component, public UARTDevice {
      * the SB1 chip via the UART bus.
      */
     void loop() override {
+      // Register shutdown hooks; don't need to do anything special on shutdown
+      // unless we've confirmed the SB1 is awake.
+      if (! this->hooks_added_){
+        add_late_hooks();
+        this->hooks_added_ = true;
+      }
+
       bool have_message = read_message();
 
-      // Reboot events are user-initiated and can occur regardless of state
+      // Reset events are user-initiated and can occur regardless of state
       if (have_message && message_matches(SB1_MESSAGE_TYPE_RESET, 0)) {
+          this->safe_mode_ = true;
           set_state(SB1_STATE_RESET_ACK);
           return;
       }
@@ -257,10 +284,16 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_HANDSHAKE_ACK:
           if (have_message && message_matches(SB1_MESSAGE_TYPE_HANDSHAKE, 0)) {
-            add_late_hooks();
+            // Copy product info and add terminating null
+            memcpy(this->product_info_, &this->message_.value, this->message_.length);
+            memset(this->product_info_ + this->message_.length, 0, 1);
+            // Go into config mode and wait for OTA if we've been asked to reset
             if (this->safe_mode_) {
-              this->safe_mode_ = false;
-              set_state(SB1_STATE_CONF_STA);
+              if (global_wifi_component->has_ap()) {
+                set_state(SB1_STATE_CONF_AP);
+              } else {
+                set_state(SB1_STATE_CONF_STA);
+              }
             } else { 
               set_state(SB1_STATE_BOOT_WIFI);
             }
@@ -308,6 +341,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
         case SB1_STATE_CONF_AP_ACK:
         case SB1_STATE_CONF_STA_ACK:
           if (have_message && message_matches(SB1_MESSAGE_TYPE_STATUS, 0)) {
+            this->safe_mode_ = false;
             set_state(SB1_STATE_RUNNING);
           }
           break;
@@ -322,17 +356,17 @@ class SB1UARTComponent : public Component, public UARTDevice {
             if (this->sensor_ != nullptr) {
               this->sensor_->publish_state(true);
             }
+          } else if (state_duration() > OTA_REBOOT_DELAY) {
+            safe_reboot("sb1-max-uptime");
           }
           break;
         case SB1_STATE_MOTION_ACK:
           if (state_duration() > MOTION_ACK_DELAY) {
-            this->safe_mode_ = false;
             safe_reboot("sb1-motion");
           }
           break;
         case SB1_STATE_RESET_ACK:
           if (state_duration() > RESET_ACK_DELAY) {
-            this->safe_mode_ = true;
             safe_reboot("sb1-reset");
           }
           break;

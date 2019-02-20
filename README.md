@@ -30,8 +30,8 @@ struct SB1Message {
   uint16_t header;  // Fixed: 0x55AA
   uint16_t type;
   uint16_t length;
-  uint8_t value[SB1_MAX_LEN];
-  uint8_t checksum;
+  uint8_t value[];   // Variable length; not terminated
+  uint8_t checksum;  // Sum of all previous bytes, modulo 256
 };
 ``` 
 
