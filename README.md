@@ -29,15 +29,14 @@ You will need a USB-TTL converter, some small probe clips, and a 3.3v supply. Th
 2.  Copy `substitutions.yaml.example` to `.substitutions.yaml` and edit to add your wifi and broker settings
 3.  Run `esphome pir.yaml compile`
 4.  Twist off the back of your PIR sensor; remove the battery and the two screws retaining the front cap.
-5.  Connect probes to the GPIO0, RXD0, TXD0, and GND contacts. These are the outer 4 contacts in the line of 5, from inside to outside.
+5.  Connect probes to the GPIO0, RXD0, TXD0, and GND contacts (see image at right).
 6.  Connect GPIO0 to GND.
-7.  Connect a 3.3v supply to the outermost contact in the group of 4, next to the large battery terminal pad. The LEDs should blink quickly and then go out.
-8.  Hold down the button within the enclosure until the blue LEDs come on and then go out; approximately 7 seconds. The ESP is now online in bootloader mode, with approximately 120 seconds until the ESP is powered down by the coprocessor.
-9.  Conect your TTL serial device to the RXD0, TXD0, and GND probes.
-10. Run `esphome pir.yaml upload` and select your serial port. If the upload fails, check that you connected everything in the proper order. In particular, having the serial device connected before powering up the ESP will prevent it from entering the bootloader. If in doubt, disconnect the TTL serial device and start over at step 8.
-11. Disconnect everything and reassemble the sensor.
-12. Insert the battery, and hold down the button until the LED goes solid and then begins flashing. The ESP is now running esphome, and is in OTA mode.
-13. Wait approximately 45 seconds for the device to reboot into normal mode. It should now function normally.
+7.  Connect your 3.3v supply, or insert the battery. The LEDs should blink quickly and then go out. The ESP is now online in bootloader mode, with approximately 120 seconds until the it is powered down by the coprocessor. If you wait too long, just pull the power and start over.
+8.  Conect your TTL serial device to the RXD0, TXD0, and GND probes.
+9. Run `esphome pir.yaml upload` and select your serial port. If the upload fails, check that you connected everything in the proper order. In particular, having the serial device connected before powering up the ESP will prevent it from entering the bootloader. If in doubt, disconnect the power and serial converted and start over at step 7.
+10. Disconnect everything and reassemble the sensor.
+11. Insert the battery, and hold down the button until the LED goes solid and then begins flashing. The ESP is now running esphome, and is in OTA mode.
+12. Wait approximately 35 seconds for the device to reboot into normal mode. It should now function normally.
 
 OTA Updates
 -----------
