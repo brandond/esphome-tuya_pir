@@ -14,9 +14,9 @@ These devices have been documented a few places; this is the first attempt that 
 * https://www.aliexpress.com/wholesale?SearchText=coolcam+white+wifi+pir
 * https://www.amazon.com/Wasserstein-Smart-Enabled-Motion-Sensor/dp/B07FXBB2HP (maybe - have not tried it myself)
 
-| [Product Image](images/product.jpg?raw=true)| [PCB Top]((images/pcb-top.jpg?raw=true)| [PCB Bottom](images/pcb-bottom.jpg?raw=true)|
-|---------------------------------------------|----------------------------------------|---------------------------------------------|
-|![Product Image](images/product_s.jpg)       |![PCB Top](images/pcb-top_s.jpg)        |![PCB Bottom](images/pcb-bottom_s.jpg)       |
+| [Product Image](images/product.jpg?raw=true)| [PCB Top](images/pcb-top.jpg?raw=true)| [PCB Bottom](images/pcb-bottom.jpg?raw=true)|
+|---------------------------------------------|---------------------------------------|---------------------------------------------|
+|![Product Image](images/product_s.jpg)       |![PCB Top](images/pcb-top_s.jpg)       |![PCB Bottom](images/pcb-bottom_s.jpg)       |
 
 Initial Flashing
 ----------------
