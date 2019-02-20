@@ -8,7 +8,7 @@ using namespace esphome;
 #define SB1_BUFFER_LEN   6     // Length of serial buffer for header + type + length
 #define SB1_HEADER_LEN   2     // Length of fixed header
 #define RESET_ACK_DELAY  250   // Time to wait before rebooting due to reset
-#define MOTION_ACK_DELAY 500   // Time to wait before acking motion event and getting put to sleep
+#define MOTION_ACK_DELAY 250   // Time to wait before acking motion event and getting put to sleep
 #define ACK_WAIT_TIMEOUT 1000  // Time to wait for handshake response before re-sending request
 #define OTA_REBOOT_DELAY 30000 // Time to stay in 'running' state waiting for OTA before rebooting
                                // This is a safety measure; although the SB1 will let us stay up for about 120
