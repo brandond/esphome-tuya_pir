@@ -1,18 +1,22 @@
-ESPHome Tuya PIR Sensor Support
+ESPHome WiFi PIR Sensor Support
 ===============================
 
-Work-in-progress support for WiFi PIR sensors built on the Tuya platform. They are badged as 'Neo Coolcam PIR' and others.
+Work-in-progress support for WiFi PIR sensors built on the Tuya platform. They seem to be manufactured by SHENZHEN NEO ELECTRONICS CO.,LTD, but are resold and rebadged by several other vendors. All devices I've seen share FCC ID [Z52NAS-PD01W0](https://fccid.io/Z52NAS-PD01W0).
 
 Overview
 --------
 
-These devices embed an ESP8266 wifi processor paired with a Silicon Labs [EMF8 'Sleepy Bee](https://www.silabs.com/products/mcu/8-bit/efm8-sleepy-bee) ultra-low-power coprocessor. The SB1 and ESP8266 communicate via serial UART at 9600 bps. The ESB1 controls the LEDs, PIR sensor, and gates power to the ESP8266 when it is not needed.
+These devices embed an ESP8266 wifi processor paired with a Silicon Labs [EMF8 'Sleepy Bee' SB1](https://www.silabs.com/products/mcu/8-bit/efm8-sleepy-bee) ultra-low-power coprocessor. The SB1 and ESP8266 communicate via serial UART at 9600 bps. The SB1 controls the LEDs, PIR sensor, and gates power to the ESP8266 when it is not needed.
 
 These devices have been documented a few places; this is the first attempt that I am aware of to document the protocol and provide alternate firmware.
 * https://github.com/esphome/esphome/issues/306
 * https://community.home-assistant.io/t/coolcam-wifi-motion-sensor-pir/54783
 * https://www.aliexpress.com/wholesale?SearchText=coolcam+white+wifi+pir
 * https://www.amazon.com/Wasserstein-Smart-Enabled-Motion-Sensor/dp/B07FXBB2HP (maybe - have not tried it myself)
+
+| [Product Image](images/product.jpg?raw=true)| [PCB Top]((images/pcb-top.jpg?raw=true)| [PCB Bottom](images/pcb-bottom.jpg?raw=true)|
+|---------------------------------------------|----------------------------------------|---------------------------------------------|
+|![Product Image](images/product_s.jpg)       |![PCB Top](images/pcb-top_s.jpg)        |![PCB Bottom](images/pcb-bottom_s.jpg)       |
 
 Initial Flashing
 ----------------
@@ -32,7 +36,6 @@ You will need a USB-TTL converter, some small probe clips, and a 3.3v supply. Th
 11. Disconnect everything and reassemble the sensor.
 12. Insert the battery, and hold down the button until the LED goes solid and then begins flashing. The ESP is now running esphome, and is in OTA mode.
 13. Wait approximately 45 seconds for the device to reboot into normal mode. It should now function normally.
-
 
 OTA Updates
 -----------
