@@ -26,13 +26,12 @@ uart:
     baud_rate: 9600
     id: uart0
 
+ota:
+
 logger:
-  level: DEBUG
+  level: INFO
   id: logger
   hardware_uart: UART1
-
-ota:
-  id: ota
 
 sensor:
   - platform: wifi_signal
@@ -42,7 +41,7 @@ sensor:
     filters: []
   - platform: adc
     id: voltage
-    name: "PIR00 Voltage Sensor"
+    name: "PIR00 Battery"
     expire_after:
     pin: VCC
     filters: []
@@ -50,7 +49,7 @@ sensor:
 binary_sensor:
   - platform: template
     id: motion
-    name: "PIR00 Motion Sensor"
+    name: "PIR00 Motion"
     filters: []
     device_class: motion
     lambda: "return {};"

@@ -349,14 +349,17 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_RUNNING:
           if (have_message && message_matches(SB1_MESSAGE_TYPE_MOTION, 0)) {
-            // TODO - there's some sort of payload in this message; not sure what it is.
-            ESP_LOGD(TAG, "Motion event:");
+            // Payload is usually something like: 0x65 0x01 0x00 0x01 0x00
+            // The last byte is 1 when motion is detected, 0 when cleared.  I have no idea
+            // what the rest of it is. I've also seen another 5 bytes after it that starts
+            // with 0x64, after the battery has been replaced.
+            ESP_LOGI(TAG, "Motion event: %d", this->message_.value[4]);
             for (size_t i = 0; i < this->message_.length; i++) {
               ESP_LOGD(TAG, "%02d: 0x%02X", i, this->message_.value[i]);
             }
             // Flip sensor on and go to wait state
             if (this->sensor_ != nullptr) {
-              this->sensor_->publish_state(true);
+              this->sensor_->publish_state(this->message_.value[4] > 0);
             }
             set_state(SB1_STATE_MOTION_ACK);
           } else if (state_duration() > OTA_REBOOT_DELAY) {
@@ -365,12 +368,6 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_MOTION_ACK:
           if (state_duration() > MOTION_ACK_DELAY) {
-            // Done waiting; clear sensor and reboot.
-            // TODO: Figure out how to get the state to expire back to 'off' after a fixed amount
-            // of time via discovery configuration (expire_after).
-            if (this->sensor_ != nullptr) {
-              this->sensor_->publish_state(false);
-            }
             safe_reboot("sb1-motion");
           }
           break;
