@@ -23,6 +23,8 @@ Initial Flashing
 
 You will need a USB-TTL converter, some small probe clips, and a 3.3v supply. The device can be powered off the battery, but I prefer to use an external supply. You must at least remove the battery before connecting everything in order to get the ESP into the bootloader.
 
+<img align="right" src="images/pin-labels.jpg?raw=true">
+
 1.  Install esphome 1.11 or better
 2.  Copy `substitutions.yaml.example` to `.substitutions.yaml` and edit to add your wifi and broker settings
 3.  Run `esphome pir.yaml compile`
