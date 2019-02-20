@@ -12,6 +12,7 @@ These devices have been documented a few places; this is the first attempt that 
 * https://github.com/esphome/esphome/issues/306
 * https://community.home-assistant.io/t/coolcam-wifi-motion-sensor-pir/54783
 * https://www.aliexpress.com/wholesale?SearchText=coolcam+white+wifi+pir
+* https://www.amazon.com/Wasserstein-Smart-Enabled-Motion-Sensor/dp/B07FXBB2HP (maybe - have not tried it myself)
 
 Initial Flashing
 ----------------
