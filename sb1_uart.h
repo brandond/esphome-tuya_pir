@@ -288,7 +288,10 @@ class SB1UARTComponent : public Component, public UARTDevice {
             memcpy(this->product_info_, &this->message_.value, this->message_.length);
             memset(this->product_info_ + this->message_.length, 0, 1);
             // Go into config mode and wait for OTA if we've been asked to reset
+            // safe_mode is immediately toggled back off so that we reboot into
+            // normal mode when max uptime (OTA_REBOOT_DELAY) is exceeded.
             if (this->safe_mode_) {
+              this->safe_mode_ = false;
               if (global_wifi_component->has_ap()) {
                 set_state(SB1_STATE_CONF_AP);
               } else {
@@ -341,7 +344,6 @@ class SB1UARTComponent : public Component, public UARTDevice {
         case SB1_STATE_CONF_AP_ACK:
         case SB1_STATE_CONF_STA_ACK:
           if (have_message && message_matches(SB1_MESSAGE_TYPE_STATUS, 0)) {
-            this->safe_mode_ = false;
             set_state(SB1_STATE_RUNNING);
           }
           break;
