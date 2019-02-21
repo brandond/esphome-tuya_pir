@@ -147,7 +147,7 @@ If the ESP8266 was powered up due to a motion event, the ack to the 'Connected t
 Motion detection will not fire more than once per boot of the ESP. The payload indicates motion state, and something else?
 * `65 01 00 01 01`  - Motion detected
 * `65 01 00 01 00`  - Motion cleared
-* `66 04 00 01 03`  - Unknown; follows one of the `65` sequences on the first motion event following power up
+* `66 04 00 01 03`  - Unknown; follows one of the `65` sequences on the first motion event following power up. Last byte seems to increment over time?
 
 The `0x00 0x05` type code is used by all motion messages and responses.
 
