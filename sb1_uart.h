@@ -7,6 +7,7 @@ using namespace esphome;
 #define SB1_MAX_LEN      256   // Max length of message value
 #define SB1_BUFFER_LEN   6     // Length of serial buffer for header + type + length
 #define SB1_HEADER_LEN   2     // Length of fixed header
+#define HOOK_STALL_TIME  50    // Time to delay in shutdown hook before actually sleeping
 #define RESET_ACK_DELAY  250   // Time to wait before rebooting due to reset
 #define EVENT_ACK_DELAY  250   // Time to wait before acking motion event and getting put to sleep
 #define ACK_WAIT_TIMEOUT 1000  // Time to wait for handshake response before re-sending request
@@ -220,6 +221,11 @@ class SB1UARTComponent : public Component, public UARTDevice {
         ESP_LOGD(TAG, "SB1 UART shutting down; next boot mode %s", this->ota_mode_ ? "OTA" : "NORMAL");
         flush();
 
+        uint32_t start = millis();
+        while (millis() - start < HOOK_STALL_TIME) {
+          yield();
+        }
+
         switch (this->state_) {
           case SB1_STATE_RESET_ACK:
             write_message(SB1_MESSAGE_TYPE_RESET, nullptr, 0);
@@ -261,7 +267,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
 
     void dump_config() override {
       ESP_LOGCONFIG(TAG, "SB1 UART:");
-      ESP_LOGCONFIG(TAG, "  Boot Mode: %d", this->ota_mode_ ? "OTA" : "NORMAL");
+      ESP_LOGCONFIG(TAG, "  Boot Mode: %s", this->ota_mode_ ? "OTA" : "NORMAL");
       ESP_LOGCONFIG(TAG, "  Product Info: %s", this->product_info_);
     }
 
