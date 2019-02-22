@@ -361,6 +361,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
         case SB1_STATE_CONF_AP_ACK:
         case SB1_STATE_CONF_STA_ACK:
           if (have_message && message_matches(SB1_MESSAGE_TYPE_STATUS, 0)) {
+            ESP_LOGI(TAG, "Waiting for OTA...");
             set_state(SB1_STATE_RUNNING_OTA);
           }
           break;
