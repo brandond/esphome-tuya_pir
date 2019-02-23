@@ -286,9 +286,8 @@ class SB1UARTComponent : public Component, public UARTDevice {
       bool have_message = read_message();
 
       // Reset events are user-initiated and can occur regardless of state
-      // Reset events toggle OTA boot mode
       if (have_message && message_matches(SB1_MESSAGE_TYPE_RESET, 0)) {
-          this->ota_mode_ = !this->ota_mode_;
+          this->ota_mode_ = true;
           set_state(SB1_STATE_RESET_ACK);
           return;
       }
@@ -399,9 +398,9 @@ class SB1UARTComponent : public Component, public UARTDevice {
           }
           break;
         case SB1_STATE_RUNNING_OTA:
-          // Don't expect any events, just disable OTA and reboot if we've been up too long.
+          this->ota_mode_ = false;
+          // Don't expect any events, just reboot if we've been up too long.
           if (state_duration() > OTA_MAX_UPTIME) {
-            this->ota_mode_ = false;
             safe_reboot("sb1-ota-timeout");
           }
           break;
