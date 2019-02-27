@@ -1,18 +1,22 @@
-ESPHome WiFi PIR Sensor Support
-===============================
+ESPHome Low-Power Wifi Sensor Support
+=====================================
 
-Work-in-progress support for WiFi PIR sensors built on the Tuya platform. They seem to be manufactured by SHENZHEN NEO ELECTRONICS CO.,LTD, but are resold and rebadged by several other vendors. All devices I've seen share FCC ID [Z52NAS-PD01W0](https://fccid.io/Z52NAS-PD01W0).
+Work-in-progress support for low-power WiFi passive infrared (PIR) and reed switch closure sensors built on the Tuya platform. They seem to be manufactured by SHENZHEN NEO ELECTRONICS CO.,LTD, but are resold and rebadged by several other vendors. All devices I've seen share FCC ID [Z52NAS-PD01W0](https://fccid.io/Z52NAS-PD01W0) for PIR sensors and [Z52NAS-DS01W0](https://fccid.io/Z52NAS-DS01W0) for the reed switch sensors.
 
 Overview
 --------
 
-These devices embed an ESP8266 wifi processor paired with a Silicon Labs [EMF8 'Sleepy Bee' SB1](https://www.silabs.com/products/mcu/8-bit/efm8-sleepy-bee) ultra-low-power coprocessor. The SB1 and ESP8266 communicate via serial UART at 9600 bps. The SB1 controls the LEDs, PIR sensor, and gates power to the ESP8266 when it is not needed.
+These devices embed an ESP8266 wifi processor paired with a Silicon Labs [EMF8 'Sleepy Bee' SB1](https://www.silabs.com/products/mcu/8-bit/efm8-sleepy-bee) ultra-low-power coprocessor. The SB1 and ESP8266 communicate via serial UART at 9600 bps. The SB1 controls the LEDs, sensors, and gates power to the ESP8266 when it is not needed.
 
 These devices have been documented a few places; this is the first attempt that I am aware of to document the protocol and provide alternate firmware.
 * https://github.com/esphome/esphome/issues/306
 * https://community.home-assistant.io/t/coolcam-wifi-motion-sensor-pir/54783
+* https://community.home-assistant.io/t/neo-window-door-sensors/67949
 * https://www.aliexpress.com/wholesale?SearchText=coolcam+white+wifi+pir
-* https://www.amazon.com/Wasserstein-Smart-Enabled-Motion-Sensor/dp/B07FXBB2HP (maybe - have not tried it myself)
+* https://www.aliexpress.com/wholesale?SearchText=coolcam+door+window+wifi
+* https://www.amazon.com/Wasserstein-Smart-Enabled-Motion-Sensor/dp/B07FXBB2HP
+
+Only the PIR sensors have actually been tested; I have some door/windows switches on order.
 
 | [Product Image](images/product.jpg?raw=true)| [PCB Top](images/pcb-top.jpg?raw=true)| [PCB Bottom](images/pcb-bottom.jpg?raw=true)|
 |---------------------------------------------|---------------------------------------|---------------------------------------------|
@@ -32,7 +36,7 @@ You will need a USB-TTL converter, some small probe clips, and a 3.3v supply. Th
 5.  Connect probes to the GPIO0, RXD0, TXD0, and GND contacts (see image at right).
 6.  Connect GPIO0 to GND.
 7.  Connect your 3.3v supply, or insert the battery. The LEDs should blink quickly and then go out. The ESP is now online in bootloader mode, with approximately 120 seconds until the it is powered down by the coprocessor. If you wait too long, just pull the power and start over.
-8.  Conect your TTL serial device to the RXD0, TXD0, and GND probes.
+8.  Connect your TTL serial device to the RXD0, TXD0, and GND probes.
 9. Run `esphome pir.yaml upload` and select your serial port. If the upload fails, check that you connected everything in the proper order. In particular, having the serial device connected before powering up the ESP will prevent it from entering the bootloader. If in doubt, disconnect the power and serial converted and start over at step 7.
 10. Disconnect everything and reassemble the sensor.
 11. Insert the battery, and hold down the button until the LED goes solid and then begins flashing. The ESP is now running esphome, and is in OTA mode.
