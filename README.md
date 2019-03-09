@@ -143,17 +143,20 @@ Unknown Event
 
 I would expect there to be a message with type code `0x00 0x04`, but I have not yet seen it.
 
-Motion Event
+Sensor Event
 ------------
 
-If the ESP8266 was powered up due to a motion event, the ack to the 'Connected to MQTT' message will be immediately followed by a motion detection message. The ESP8266 will be powered down immediately after acking the motion detection message. The message should NOT be ackd until whatever notification you're going to send has been successfully transmitted. 
+If the ESP8266 was powered up due to a sensor event, the ack to the 'Connected to MQTT' message will be immediately followed by a sensor event message. The ESP8266 will be powered down immediately after acking the event message. The message should NOT be ackd until whatever notification you're going to send has been successfully transmitted. 
 
-Motion detection will not fire more than once per boot of the ESP. The payload indicates motion state, and something else?
-* `65 01 00 01 01`  - Motion detected
+Sensor events will not be sent more than once per boot of the ESP.
+* `01 04 00 01 00`  - Door open
+* `01 04 00 01 01`  - Door closed
 * `65 01 00 01 00`  - Motion cleared
-* `66 04 00 01 03`  - Unknown; follows one of the `65` sequences on the first motion event following power up. Last byte seems to increment over time?
+* `65 01 00 01 01`  - Motion detected
+* `65 04 00 01 00`  - Door sensor first boot (last byte variable; some sort of failed boot counter?)
+* `66 04 00 01 00`  - Motion sensor first boot (last byte variable; some sort of failed boot counter?)
 
-The `0x00 0x05` type code is used by all motion messages and responses.
+The `0x00 0x05` type code is used by all sensor event messages and responses.
 
 ```
 SB1 -> ESP8266: 55 AA 00 05 00 05 65 01 00 01 00 70
