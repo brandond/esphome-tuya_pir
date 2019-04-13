@@ -40,8 +40,8 @@ enum SB1MessageType {
 };
 
 enum SB1EventType {
-  SB1_EVENT_TYPE_MOTION = 0x65,
-  SB1_EVENT_TYPE_RESET
+  SB1_EVENT_TYPE_MOTION = 0x6501,
+  SB1_EVENT_TYPE_RESET  = 0x6604
 };
 
 enum SB1State {
@@ -283,6 +283,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
         this->hooks_added_ = true;
       }
 
+      unsigned int event_type;
       bool have_message = read_message();
 
       // Reset events are user-initiated and can occur regardless of state
@@ -383,12 +384,13 @@ class SB1UARTComponent : public Component, public UARTDevice {
             }
             // Handle various event chunks; they all seem to be 5 bytes long
             for (size_t i = 0; i < this->message_.length; i += 5) {
-              if (this->message_.value[i] == SB1_EVENT_TYPE_MOTION) {
+              event_type = (this->message_.value[i] << 8) | this->message_.value[i + 1];
+              if (event_type == SB1_EVENT_TYPE_MOTION) {
                 ESP_LOGI(TAG, "Motion event: %d", this->message_.value[i + 4]);
                 if (this->sensor_ != nullptr) {
                   this->sensor_->publish_state(this->message_.value[i + 4] > 0);
                 }
-              } else if (this->message_.value[i] == SB1_EVENT_TYPE_RESET) {
+              } else if (event_type == SB1_EVENT_TYPE_RESET) {
                 ESP_LOGI(TAG, "Reset event: %d", this->message_.value[i + 4]);
               }
             }
