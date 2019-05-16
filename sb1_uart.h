@@ -73,14 +73,13 @@ struct SB1Message {
   uint8_t checksum;
 };
 
-class SB1UARTComponent : public Component, public UARTDevice {
+class SB1UARTComponent : public Component, public uart::UARTDevice {
   protected:
     binary_sensor::BinarySensor *sensor_{nullptr};
     SB1State state_{SB1_STATE_HANDSHAKE};
     SB1Message message_{SB1_HEADER, SB1_MESSAGE_TYPE_INVALID, 0, {}, 0};
     ESPPreferenceObject rtc_;
     bool ota_mode_{false};
-    bool hooks_added_{false};
     uint32_t state_start_{0};
     uint8_t uart_buffer_[SB1_BUFFER_LEN]{0};
     uint8_t product_info_[SB1_MAX_LEN]{0};
@@ -209,50 +208,15 @@ class SB1UARTComponent : public Component, public UARTDevice {
       }
     }
 
-    /*
-     * Add safe shutdown hooks after the main loop has started.
-     *
-     * Don't do this in setup, otherwise we get called before the OTA component gets a chance
-     * to clear the boot loop counter, due to our setup registering the hook first.
-     * Hooks should probably be called in reverse order of registration.
-     */
-    void add_late_hooks() {
-      ESP_LOGV(TAG, "Adding safe shutdown hooks...");
-      add_safe_shutdown_hook([this](const char *cause) {
-        this->rtc_.save(&this->ota_mode_);
-        ESP_LOGD(TAG, "SB1 UART shutting down; next boot mode %s", this->ota_mode_ ? "OTA" : "NORMAL");
-        flush();
-
-        uint32_t start = millis();
-        while (millis() - start < HOOK_STALL_TIME) {
-          yield();
-        }
-
-        switch (this->state_) {
-          case SB1_STATE_RESET_ACK:
-            write_message(SB1_MESSAGE_TYPE_RESET, nullptr, 0);
-            break;
-          case SB1_STATE_EVENT_ACK:
-            write_message(SB1_MESSAGE_TYPE_EVENT, SB1_EVENT_ACK, 1);
-            break;
-          case SB1_STATE_RUNNING_NORMAL:
-            ESP.deepSleep(HALT_SLEEP_DELAY, WAKE_RF_DISABLED);
-            break;
-          default:
-            break;
-        }
-      });
-    }
-
   public:
-    SB1UARTComponent(UARTComponent *parent, binary_sensor::BinarySensor *sensor)
-        : UARTDevice(parent)
+    SB1UARTComponent(uart::UARTComponent *parent, binary_sensor::BinarySensor *sensor)
+        : uart::UARTDevice(parent)
         , sensor_(sensor) {}
 
     // Run after hardware (UART), but before WiFi and MQTT so that we can
     // send status messages to the SB1 as these components come up.
     float get_setup_priority() const override {
-      return setup_priority::HARDWARE_LATE;
+      return setup_priority::DATA;
     }
 
     // Run very late in the loop, so that other components can process
@@ -279,12 +243,6 @@ class SB1UARTComponent : public Component, public UARTDevice {
      * the SB1 chip via the UART bus.
      */
     void loop() override {
-      // Register shutdown hooks after all the other components are set up
-      if (! this->hooks_added_){
-        add_late_hooks();
-        this->hooks_added_ = true;
-      }
-
       unsigned int event_type;
       bool have_message = read_message();
 
@@ -307,7 +265,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
             memset(this->product_info_ + this->message_.length, 0, 1);
             // Go into OTA mode and wait if we've been asked to reset
             if (this->ota_mode_) {
-              if (global_wifi_component->has_ap()) {
+              if (wifi::global_wifi_component->has_ap()) {
                 set_state(SB1_STATE_CONF_AP);
               } else {
                 set_state(SB1_STATE_CONF_STA);
@@ -328,7 +286,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
           set_state(SB1_STATE_CONF_STA_ACK);
           break;
         case SB1_STATE_BOOT_WIFI:
-          if (global_wifi_component->is_connected()) {
+          if (wifi::global_wifi_component->is_connected()) {
             write_message(SB1_MESSAGE_TYPE_STATUS, SB1_STATUS_BOOT_WIFI, 1);
             set_state(SB1_STATE_BOOT_WIFI_ACK);
           }
@@ -339,7 +297,7 @@ class SB1UARTComponent : public Component, public UARTDevice {
           }
           break;
         case SB1_STATE_BOOT_DHCP:
-          if (global_wifi_component->get_ip_address() != (uint32_t)0 ) {
+          if (wifi::global_wifi_component->get_ip_address() != (uint32_t)0 ) {
             write_message(SB1_MESSAGE_TYPE_STATUS, SB1_STATUS_BOOT_DHCP, 1);
             set_state(SB1_STATE_BOOT_DHCP_ACK);
           }
@@ -369,12 +327,14 @@ class SB1UARTComponent : public Component, public UARTDevice {
           break;
         case SB1_STATE_RESET_ACK:
           if (state_duration() > RESET_ACK_DELAY) {
-            safe_reboot("sb1-reset");
+            ESP_LOGI(TAG, "Rebooting: SB1_STATE_RESET_ACK");
+            App.safe_reboot();
           }
           break;
         case SB1_STATE_EVENT_ACK:
           if (state_duration() > EVENT_ACK_DELAY) {
-            safe_reboot("sb1-event");
+            ESP_LOGI(TAG, "Rebooting: SB1_STATE_EVENT_ACK");
+            App.safe_reboot();
           }
           break;
         case SB1_STATE_RUNNING_NORMAL:
@@ -405,15 +365,42 @@ class SB1UARTComponent : public Component, public UARTDevice {
             }
             set_state(SB1_STATE_EVENT_ACK);
           } else if (state_duration() > NORM_MAX_UPTIME) {
-            safe_reboot("sb1-norm-timeout");
+            ESP_LOGI(TAG, "Rebooting: SB1_STATE_RUNNING_NORMAL");
+            App.safe_reboot();
           }
           break;
         case SB1_STATE_RUNNING_OTA:
           this->ota_mode_ = false;
           // Don't expect any events, just reboot if we've been up too long.
           if (state_duration() > OTA_MAX_UPTIME) {
-            safe_reboot("sb1-ota-timeout");
+            ESP_LOGI(TAG, "Rebooting: SB1_STATE_RUNNING_OTA");
+            App.safe_reboot();
           }
+          break;
+      }
+    }
+
+    void on_safe_shutdown() override {
+      this->rtc_.save(&this->ota_mode_);
+      ESP_LOGD(TAG, "SB1 UART shutting down; next boot mode %s", this->ota_mode_ ? "OTA" : "NORMAL");
+      flush();
+
+      uint32_t start = millis();
+      while (millis() - start < HOOK_STALL_TIME) {
+        yield();
+      }
+
+      switch (this->state_) {
+        case SB1_STATE_RESET_ACK:
+          write_message(SB1_MESSAGE_TYPE_RESET, nullptr, 0);
+          break;
+        case SB1_STATE_EVENT_ACK:
+          write_message(SB1_MESSAGE_TYPE_EVENT, SB1_EVENT_ACK, 1);
+          break;
+        case SB1_STATE_RUNNING_NORMAL:
+          ESP.deepSleep(HALT_SLEEP_DELAY, WAKE_RF_DISABLED);
+          break;
+        default:
           break;
       }
     }
