@@ -1,9 +1,8 @@
 esphome:
-  name: pir00
+  name: pir
   platform: ESP8266
   board: esp01_1m
-  arduino_version: 2.4.2
-  esphome_core_version: dev
+  arduino_version: 2.5.1
   board_flash_mode: dout
   build_path: .build
   includes:
@@ -18,6 +17,7 @@ wifi:
 
 mqtt:
   broker: ${mqtt_broker}
+  birth_message:
   will_message:
 
 uart:
@@ -30,18 +30,15 @@ ota:
 
 logger:
   level: INFO
-  id: logger
   hardware_uart: UART1
 
 sensor:
   - platform: wifi_signal
-    id: wifi_signal
-    name: "PIR00 WiFi Signal"
+    name: "PIR WiFi Signal"
     expire_after:
     filters: []
   - platform: adc
-    id: voltage
-    name: "PIR00 Battery"
+    name: "PIR Battery"
     expire_after:
     pin: VCC
     filters: []
@@ -49,7 +46,7 @@ sensor:
 binary_sensor:
   - platform: template
     id: motion
-    name: "PIR00 Motion"
+    name: "PIR Motion"
     filters: []
     device_class: motion
     lambda: "return {};"
