@@ -229,6 +229,13 @@ class SB1UARTComponent : public Component, public uart::UARTDevice {
       ESP_LOGCONFIG(TAG, "Setting up SB1 UART...");
       this->rtc_ = global_preferences.make_preference<bool>(this->sensor_->get_object_id_hash());
       this->rtc_.load(&this->ota_mode_);
+
+      if (!this->ota_mode_) {
+        if (mqtt::global_mqtt_client != nullptr) {
+            ESP_LOGD(TAG, "Disabling MQTT discovery outside OTA mode");
+            mqtt::global_mqtt_client->disable_discovery();
+        }
+      }
     }
 
     void dump_config() override {
