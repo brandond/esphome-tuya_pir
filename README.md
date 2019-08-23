@@ -60,15 +60,18 @@ The manual suggests that 1500 mAh battery is good for about 18,000 events (motio
 Serial Protocol Overview
 ------------------------
 
-These are the message I have seen the two processors exchange during limited bench testing. There may be more.
+Version 3 of the Tuya MCU serial protocol is documented here: https://docs.tuya.com/en/mcu/mcu-protocol.html
 
-The protocol is a simple type-length-value sequence, with a fixed header and trailing 1-byte modulo-265 sum of the previous bytes, including the header. It looks something like this:
+Unfortunately these devices seem to use Version 0 of the serial protocl, which is not documented anywhere that I can find, and differs significantly from Version 3. These are the Version 0 messages I have seen the two processors exchange during limited bench testing. There may be more.
+
+The protocol is a simple command-length-value sequence, with a fixed header and trailing 1-byte modulo-265 sum of the previous bytes, including the header. It looks something like this:
 
 ```C
 // longs are sent in network byte order
 struct SB1Message {
   uint16_t header;  // Fixed: 0x55AA
-  uint16_t type;
+  uint8_t version;
+  uint8_t command;
   uint16_t length;
   uint8_t value[];   // Variable length; not terminated
   uint8_t checksum;  // Sum of all previous bytes, modulo 256
@@ -80,7 +83,7 @@ Handshake
 
 The first message is always a product ID request from the ESP to the SB1.
 
-The `0x00 0x01` type code is used by both the request and response.
+The `0x01` command code is used by both the request and response.
 
 **Product ID Handshake:**
 ```
@@ -93,7 +96,7 @@ Configuration Status
 
 After handshaking, the sequence may go to one of three different paths as the ESP8266 is configured by the smartphone app and connnects to the cloud service.
 
-The `0x00 0x02` type code is used by all status messages and responses.
+The `0x02` command code is used by all status messages and responses.
 
 **WiFi SmartConfig AP (Fast Blink) Mode:**
 ```
@@ -131,7 +134,7 @@ Configuration Reset
 
 The SB1 may send a reset command to the ESP8266 at any time. This is triggered by holding down the button inside the device as described in the user manual. The Tuya firmware responds by removing all WiFi and Tuya configuration, and rebooting into SmartConfig mode. Repeated messages are used to toggle the device between STA and AP mode for SmartConfig. The SB1 does not seem to care if you ack this or not; it expects the ESP8266 to reboot anyway.
 
-The `0x00 0x03` type code is used by all status messages and responses.
+The `0x03` command code is used by all status messages and responses.
 
 ```
 SB1 -> ESP8266: 55 AA 00 03 00 00 02
@@ -141,7 +144,7 @@ ESP8266 -> SB1: 55 AA 00 03 00 00 02
 Unknown Event
 -------------
 
-I would expect there to be a message with type code `0x00 0x04`, but I have not yet seen it.
+I would expect there to be a message with command code `0x04`, but I have not yet seen it.
 
 Sensor Event
 ------------
@@ -156,7 +159,7 @@ Sensor events will not be sent more than once per boot of the ESP.
 * `65 04 00 01 00`  - Door sensor first boot (last byte variable; some sort of failed boot counter?)
 * `66 04 00 01 00`  - Motion sensor first boot (last byte variable; some sort of failed boot counter?)
 
-The `0x00 0x05` type code is used by all sensor event messages and responses.
+The `0x05` command code is used by all sensor event messages and responses.
 
 ```
 SB1 -> ESP8266: 55 AA 00 05 00 05 65 01 00 01 00 70

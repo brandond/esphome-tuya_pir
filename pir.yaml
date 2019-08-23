@@ -18,6 +18,7 @@ wifi:
 mqtt:
   broker: ${mqtt_broker}
   birth_message:
+  shutdown_message:
   will_message:
 
 uart:
@@ -35,10 +36,12 @@ logger:
 sensor:
   - platform: wifi_signal
     name: "PIR WiFi Signal"
+    update_interval: never
     expire_after:
     filters: []
   - platform: adc
     name: "PIR Battery"
+    update_interval: never
     expire_after:
     pin: VCC
     filters: []
@@ -47,6 +50,7 @@ binary_sensor:
   - platform: template
     id: motion
     name: "PIR Motion"
+    update_interval: never
     filters: []
     device_class: motion
     lambda: "return {};"
