@@ -171,12 +171,18 @@ def handle_dp(b):
 
 def handle_buffer(d, b, v=0):
     print('{}: {}'.format(d, ' '.join(b)))
+    # Extract version, command, length, data, and sum
     v = int(b[2], 16) or v
     c = int(b[3], 16)
     l = (int(b[4], 16) << 8) + (int(b[5], 16))
     d = b[6:6+l]
     s = int(b[6+l], 16)
-    print('\tTuyaMessage version={} command={} length={} data="{}" checksum={}'.format(v, c, l, ' '.join(d), s))
+    # Calculate real sum
+    r = 0
+    for i in range(0, 6+l):
+        r += int(b[i], 16)
+    r %= 256
+    print('\tTuyaMessage version={} command={} length={} data="{}" checksum={}[{}]'.format(v, c, l, ' '.join(d), s, r))
     try:
         funcs[v][c](d)
     except KeyError as e:
