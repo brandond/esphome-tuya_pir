@@ -1,5 +1,5 @@
 esphome:
-  name: pir
+  name: door
   platform: ESP8266
   board: esp01_1m
   arduino_version: 2.5.1
@@ -34,12 +34,12 @@ logger:
 
 sensor:
   - platform: wifi_signal
-    name: "PIR WiFi Signal"
+    name: "Door WiFi Signal"
     update_interval: never
     expire_after:
     filters: []
   - platform: adc
-    name: "PIR Battery"
+    name: "Door Battery"
     update_interval: never
     expire_after:
     pin: VCC
@@ -47,14 +47,14 @@ sensor:
 
 binary_sensor:
   - platform: template
-    id: motion
-    name: "PIR Motion"
+    id: door
+    name: "Door Closure"
     filters: []
-    device_class: motion
+    device_class: door
     lambda: "return {};"
 
 custom_component:
   - id: sb1_uart
     lambda: |-
-      auto component = new SB1UARTComponent(id(uart0), id(motion));
+      auto component = new SB1UARTComponent(id(uart0), id(door));
       return {component};
