@@ -367,7 +367,13 @@ class SB1UARTComponent : public Component, public uart::UARTDevice {
                 }
               } else if (event_type == SB1_EVENT_TYPE_MOTION_RESET ||
                          event_type == SB1_EVENT_TYPE_DOOR_RESET) {
+                // It seems that RESET event can occur before sensor event in newer
+                // Coolcam PIR sensors. Don't go to EVENT_ACK state, because
+                // it will shutdown esp8266 and motion event won't get transmitted.
+                // Just acknowledge it to MCU.
                 ESP_LOGI(TAG, "Reset event: %d", this->message_.value[i + 4]);
+                write_message(SB1_MESSAGE_TYPE_EVENT, SB1_EVENT_ACK, 1);
+                return;
               }
             }
             set_state(SB1_STATE_EVENT_ACK);
